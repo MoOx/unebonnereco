@@ -1,0 +1,11 @@
+{
+  "_readme": "Human corrections, keyed by recommendation id. The pipeline never writes this file, so edits here survive every re-run. Only list the fields you are correcting.",
+  "_example": {
+    "-lc9eAEFlUk-01": {
+      "recommendedBy": "Orelsan",
+      "attributionCued": true,
+      "title": "The Rehearsal",
+      "note": "corrigé le 2026-07-29 — le nom n'était pas prononcé"
+    }
+  }
+}

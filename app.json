@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "Un Bon Moment — les recos",
+    "slug": "unebonnereco",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "unebonnereco",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "plugins": ["expo-router", "expo-status-bar"],
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "experiments": {
+      "typedRoutes": true,
+      "baseUrl": "/unebonnereco"
+    }
+  }
+}
