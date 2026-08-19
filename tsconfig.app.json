@@ -1,0 +1,28 @@
+// The site, type-checked separately from the pipeline.
+//
+// They cannot share one configuration: the pipeline runs on Node and needs
+// `nodenext` resolution with explicit `.ts` extensions, while the site is resolved by
+// Metro, imports without extensions and pulls JSON straight in. Pointing one config
+// at both makes every UI import an error, which is why `app/` and `ui/` went
+// unchecked until corrections started arriving from readers and CI had to mean
+// something.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "rewriteRelativeImportExtensions": false,
+    "resolveJsonModule": true,
+    "jsx": "react-jsx",
+    "lib": ["es2023", "dom"],
+    "types": ["react", "node"]
+  },
+  "include": [
+    "app/**/*.tsx",
+    "ui/**/*.ts",
+    "ui/**/*.tsx",
+    "src/types.ts",
+    "expo-env.d.ts",
+    ".expo/types/**/*.ts"
+  ]
+}

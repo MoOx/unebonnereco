@@ -1,7 +1,8 @@
 import episodesJson from "../data/episodes.json";
 import overridesJson from "../data/overrides.json";
 import recommendationsJson from "../data/recommendations.json";
-import type { Episode, Recommendation, WorkKind } from "../src/types";
+import reviewJson from "../data/review.json";
+import type { Episode, Recommendation, ReviewNote, WorkKind } from "../src/types";
 
 /**
  * The catalogue, read straight from the JSON the pipeline commits.
@@ -12,30 +13,56 @@ import type { Episode, Recommendation, WorkKind } from "../src/types";
 export const EPISODES = episodesJson as Episode[];
 
 /**
- * Human corrections, applied on top of what the pipeline produced.
+ * What people have said about what the pipeline produced.
  *
- * They live in their own file for one reason: the pipeline rewrites
- * `recommendations.json` wholesale on every run, so anything edited there would be
- * lost the next time an episode is added. Merging at read time keeps the two apart —
- * the machine owns one file, people own the other, and neither overwrites the other.
+ * Both files live apart from `recommendations.json` for one reason: the pipeline
+ * rewrites that file wholesale on every run, so anything edited there would be lost
+ * the next time an episode is added. Merging at read time keeps the two apart — the
+ * machine owns one file, people own the others, and neither overwrites the other.
  *
- * Keys prefixed with `_` are documentation inside the JSON, not corrections.
+ * They are two files rather than one because they answer different questions.
+ * An override says what an entry should contain; a verdict says whether it should
+ * exist at all. Reviewing the catalogue also produces one line per entry, which would
+ * bury the handful of hand-written corrections if both lived together.
+ *
+ * Keys prefixed with `_` are documentation inside the JSON, not data.
  */
-const OVERRIDES = Object.fromEntries(
-  Object.entries(overridesJson as Record<string, unknown>).filter(
-    ([id]) => !id.startsWith("_"),
-  ),
-) as Record<string, Partial<Recommendation>>;
+function handEdited<T>(json: unknown): Record<string, T> {
+  return Object.fromEntries(
+    Object.entries(json as Record<string, T>).filter(
+      ([id]) => !id.startsWith("_"),
+    ),
+  );
+}
+
+const OVERRIDES = handEdited<Partial<Recommendation>>(overridesJson);
+const REVIEWS = handEdited<ReviewNote>(reviewJson);
 
 export const RECOMMENDATIONS: Recommendation[] = (
   recommendationsJson as Recommendation[]
-).map((reco) => {
-  const fix = OVERRIDES[reco.id];
-  return fix ? { ...reco, ...fix, corrected: true } : reco;
-});
+)
+  .map((reco) => {
+    const fix = OVERRIDES[reco.id];
+    const verdict = REVIEWS[reco.id];
+    if (!fix && !verdict) return reco;
+    return {
+      ...reco,
+      ...fix,
+      ...(verdict ? { status: verdict.status } : null),
+      corrected: Boolean(fix),
+      reviewed: Boolean(verdict),
+    };
+  })
+  // A rejected entry leaves the catalogue rather than being hidden from the feed:
+  // half-presence would still count it in a guest's tally and still answer on its own
+  // URL, which is not what rejecting it means.
+  .filter((reco) => reco.status !== "rejected");
 
 /** How many entries a person has corrected, for the site to acknowledge. */
 export const CORRECTION_COUNT = Object.keys(OVERRIDES).length;
+
+/** How many a person has passed a verdict on — checked or thrown out. */
+export const REVIEWED_COUNT = Object.keys(REVIEWS).length;
 
 const EPISODE_BY_ID = new Map(EPISODES.map((episode) => [episode.id, episode]));
 
@@ -88,10 +115,30 @@ export const guestFromSlug = (slug: string): string | undefined =>
 export const stillUrl = (episodeId: string, size: "max" | "mq" = "max"): string =>
   `https://i.ytimg.com/vi/${episodeId}/${size === "max" ? "maxresdefault" : "mqdefault"}.jpg`;
 
+/** The bounds of a clip, so a correction in progress can be previewed unsaved. */
+export type Clip = { startS: number; endS: number };
+
+export const clipOf = (reco: Recommendation): Clip => ({
+  startS: reco.clipStartS,
+  endS: reco.clipEndS,
+});
+
 /** Plays exactly the recommendation, then stops. */
-export const embedUrl = (reco: Recommendation): string =>
+export const embedUrl = (reco: Recommendation, clip: Clip = clipOf(reco)): string =>
   `https://www.youtube-nocookie.com/embed/${reco.episodeId}` +
-  `?start=${reco.clipStartS}&end=${reco.clipEndS}&rel=0&modestbranding=1&playsinline=1`;
+  `?start=${clip.startS}&end=${clip.endS}&rel=0&modestbranding=1&playsinline=1`;
+
+/**
+ * The same moment on YouTube proper, for where an embed cannot go.
+ *
+ * Derived rather than stored: it was a field on the recommendation until corrections
+ * could move `clipStartS`, at which point a stored copy meant the player opened at the
+ * corrected second while this link still pointed at the old one.
+ */
+export const timestampedUrl = (
+  reco: Recommendation,
+  clip: Clip = clipOf(reco),
+): string => `https://www.youtube.com/watch?v=${reco.episodeId}&t=${clip.startS}s`;
 
 export function hms(seconds: number): string {
   const s = Math.floor(seconds);

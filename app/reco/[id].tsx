@@ -1,8 +1,12 @@
 import { Link, Stack, useLocalSearchParams } from "expo-router";
+import { useState } from "react";
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
+import type { Recommendation } from "../../src/types";
 import { RECOMMENDATIONS, episodeOf, formatDate, guestSlug, recoById } from "../../ui/catalogue";
 import { COLORS, FONTS, KIND_COLOR, KIND_LABEL, SPACE } from "../../ui/theme";
+import { CorrectionForm } from "../../ui/CorrectionForm";
+import { draftOf } from "../../ui/contribute";
 import { Player } from "../../ui/Player";
 
 /** Pre-render one page per recommendation, so every entry has a shareable URL. */
@@ -25,6 +29,19 @@ export default function RecoDetail() {
     );
   }
 
+  return <Detail reco={reco} />;
+}
+
+/**
+ * Split from the route so the correction being drafted can start from the entry.
+ *
+ * The draft lives here rather than inside the form because the player reads from it
+ * too: adjusting where the passage starts is only useful if you can hear the result,
+ * and that means the same state driving both.
+ */
+function Detail({ reco }: { reco: Recommendation }) {
+  const [draft, setDraft] = useState(() => draftOf(reco));
+
   const kind = KIND_COLOR[reco.kind];
   const episode = episodeOf(reco);
   const host = reco.link ? reco.link.replace(/^https?:\/\/(www\.)?/, "").split("/")[0] : "";
@@ -33,7 +50,7 @@ export default function RecoDetail() {
     <ScrollView contentContainerStyle={styles.page}>
       <Stack.Screen options={{ title: reco.title }} />
 
-      <Player reco={reco} />
+      <Player reco={reco} clip={{ startS: draft.clipStartS, endS: draft.clipEndS }} />
 
       <View style={styles.body}>
         <View>
@@ -88,6 +105,19 @@ export default function RecoDetail() {
             et peut être approximatif.
           </Text>
         ) : null}
+
+        {reco.corrected || reco.reviewed ? (
+          <Text style={styles.note}>
+            <Text style={styles.noteStrong}>
+              {reco.corrected ? "Corrigée à la main. " : "Relue à la main. "}
+            </Text>
+            {reco.corrected
+              ? "Quelqu'un a écouté le passage et rectifié ce que la machine avait compris."
+              : "Quelqu'un a écouté le passage et confirmé ce que la machine avait compris."}
+          </Text>
+        ) : null}
+
+        <CorrectionForm reco={reco} draft={draft} onChange={setDraft} />
       </View>
     </ScrollView>
   );

@@ -1,0 +1,11 @@
+{
+  "_readme": "Human verdicts, keyed by recommendation id. `published` means a person checked the entry and it holds up; `rejected` means it is not a recommendation and leaves the catalogue. Corrections to the content of an entry go in overrides.json instead — this file only answers whether an entry should exist. The pipeline never writes it, so verdicts survive every re-run.",
+  "_example": {
+    "-lc9eAEFlUk-01": {
+      "status": "rejected",
+      "at": "2026-08-19",
+      "by": "MoOx",
+      "reason": "ce n'est pas une reco, ils parlent du film qu'ils viennent de citer"
+    }
+  }
+}

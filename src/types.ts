@@ -46,6 +46,26 @@ export type LinkSource =
 
 export type ReviewStatus = "to_review" | "published" | "rejected";
 
+/**
+ * A person's verdict on a machine-made entry, keyed by recommendation id in
+ * data/review.json.
+ *
+ * Kept apart from an override because the two answer different questions: an override
+ * says what an entry should contain, a verdict says whether it should exist at all.
+ * They also arrive at different rates — reviewing the catalogue produces one line per
+ * entry, and that volume would bury the handful of hand-written corrections if both
+ * lived in the same file.
+ */
+export type ReviewNote = {
+  /** `published` — a person checked it. `rejected` — not a recommendation; drop it. */
+  status: Exclude<ReviewStatus, "to_review">;
+  /** ISO date, so a verdict can be revisited when the pipeline changes under it. */
+  at?: string;
+  /** Who passed it, when they want the credit. */
+  by?: string;
+  reason?: string;
+};
+
 export type Episode = {
   /** YouTube video id, e.g. "-lc9eAEFlUk". Note: can start with a dash. */
   id: string;
@@ -144,7 +164,6 @@ export type Recommendation = {
    */
   clipStartS: number;
   clipEndS: number;
-  timestampedUrl: string;
   transcriptExcerpt: string;
   description?: string;
   link?: string;
@@ -159,6 +178,8 @@ export type Recommendation = {
   candidates?: string[];
   /** Set at read time when a human correction from data/overrides.json applies. */
   corrected?: boolean;
+  /** Set at read time when a human verdict from data/review.json applies. */
+  reviewed?: boolean;
   /** Free-text rationale carried by a correction. */
   note?: string;
 };

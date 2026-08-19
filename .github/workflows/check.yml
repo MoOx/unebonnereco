@@ -1,0 +1,34 @@
+name: Check
+
+# The gate for corrections. They arrive as pull requests touching data/, where a bad
+# id or a stray field changes nothing and says nothing — the merge that applies them
+# is a silent one. This makes that failure visible before anyone merges it.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # First, because it is the one a contributor's pull request is likely to fail,
+      # and its output says what to fix.
+      - name: Validate corrections
+        run: npm run validate
+
+      - name: Type-check
+        run: npm run typecheck

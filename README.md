@@ -79,8 +79,16 @@ a search URL when it 404s.
 
 ## Contributing a correction
 
-The catalogue is machine-made and wrong in places. Corrections go in
-**[`data/overrides.json`](data/overrides.json)**, keyed by recommendation id:
+The catalogue is machine-made and wrong in places. Every entry on the site carries a
+**✎ Corriger cette fiche** button that opens a small form — pre-filled with what the
+entry currently says — and ends in one of two places: a pre-filled GitHub issue, or a
+pre-filled mail to the address in [`ui/contribute.ts`](ui/contribute.ts), for readers
+who will not open a GitHub account. Nothing is applied automatically. A person reads
+every correction and merges it, which is the only reason the door can be open at all.
+
+By hand, corrections go in two files, keyed by recommendation id:
+
+**[`data/overrides.json`](data/overrides.json)** — what an entry should say:
 
 ```json
 {
@@ -92,10 +100,37 @@ The catalogue is machine-made and wrong in places. Corrections go in
 }
 ```
 
-Only list the fields you are correcting. **The pipeline never writes this file**, so
+**[`data/review.json`](data/review.json)** — whether it should exist:
+
+```json
+{
+  "-lc9eAEFlUk-07": {
+    "status": "rejected",
+    "at": "2026-08-19",
+    "reason": "not a recommendation, they are quoting the film they just watched"
+  }
+}
+```
+
+Two files rather than one because they answer different questions, and fill at
+different rates: reviewing the catalogue produces a line per entry, which would bury
+the handful of hand-written corrections. `published` marks an entry a person has
+checked; `rejected` takes it out of the catalogue entirely.
+
+Only list the fields you are correcting. **The pipeline never writes either file**, so
 edits survive every re-run — unlike edits to `recommendations.json`, which is rebuilt
 from scratch whenever an episode is added. Open a pull request and the site rebuilds
 itself once it is merged.
+
+```bash
+npm run validate    # before opening the pull request; CI runs the same check
+```
+
+This matters more than it looks. Both files are merged into the catalogue at read
+time by id, so a correction on an id that does not exist changes nothing and says
+nothing — a typo looks exactly like a correction that worked. `npm run validate`
+turns every one of those silent no-ops into an error, and refuses fields nothing
+reads, links that are not https, and passages that fall outside their episode.
 
 The two things most worth correcting:
 
@@ -112,6 +147,10 @@ Pushing to `main` builds and publishes automatically
 ([`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)). The build needs no
 secret: it reads `data/` out of the repository. Enable it once under
 **Settings → Pages → Source: GitHub Actions**.
+
+Pull requests get [`check.yml`](.github/workflows/check.yml) instead — the data
+validator and both type-checks, with nothing published. Merging is a human decision
+in every case; nothing here merges itself.
 
 ## Requirements
 
@@ -133,12 +172,13 @@ TMDB read token in `.env.local` as `TMDB_READ_TOKEN` for film and series artwork
 
 ```text
 src/types.ts    domain types — the contract between pipeline and site
+src/validate.ts checks the hand-edited data; CI runs it on every pull request
 src/lib/        subprocess, HTTP cache, quote location, catalogue lookups
 src/backends/   claude-code and ollama, behind one interface
 src/steps/      the pipeline, one file per step
 app/            routes: the feed, /reco/<id>, /invite/<name>
 ui/             components and data access shared by the routes
-data/           published catalogue + human corrections
+data/           published catalogue + human corrections and verdicts
 work/           intermediates — not versioned, regenerable
 ```
 

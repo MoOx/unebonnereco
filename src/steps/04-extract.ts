@@ -109,7 +109,6 @@ function toRecommendation(
     timecodeExact,
     clipStartS,
     clipEndS,
-    timestampedUrl: `https://www.youtube.com/watch?v=${episodeId}&t=${clipStartS}s`,
     transcriptExcerpt: raw.excerpt ?? "",
     confidence: raw.confidence ?? 0,
     status: "to_review",
@@ -164,8 +163,6 @@ function replacePlacements(source: TranscriptSource, suffixFor: string): void {
         : false;
       reco.clipStartS = Math.max(0, located.startS - CLIP_LEAD_IN);
       reco.clipEndS = Math.max(located.endS + CLIP_TAIL, reco.clipStartS + CLIP_MIN);
-      reco.timestampedUrl =
-        `https://www.youtube.com/watch?v=${run.episodeId}&t=${reco.clipStartS}s`;
     }
     writeJson(join(RAW_RECOS, file), run);
   }

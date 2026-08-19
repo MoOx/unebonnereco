@@ -15,7 +15,8 @@
     "whisper": "node src/steps/03b-whisper.ts",
     "extract": "node src/steps/04-extract.ts",
     "enrich": "node src/steps/05-enrich.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.app.json",
+    "validate": "node src/validate.ts",
     "start": "expo start",
     "web": "expo start --web",
     "build": "expo export --platform web"

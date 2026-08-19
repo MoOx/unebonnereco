@@ -1,0 +1,49 @@
+name: Corriger une fiche
+description: Signaler ce que la machine a compris de travers sur une recommandation
+title: "Correction : "
+labels: ["correction"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ce formulaire arrive normalement pré-rempli, depuis le bouton **✎ Corriger
+        cette fiche** en bas de chaque recommandation du
+        [site](https://moox.github.io/unebonnereco/). Si tu es arrivé ici à la main,
+        le plus simple est de repartir de là : la fiche connaît son identifiant et ses
+        valeurs actuelles, et remplit tout ça pour toi.
+
+        Rien n'est appliqué automatiquement. Quelqu'un relit chaque correction avant
+        qu'elle soit publiée.
+  - type: input
+    id: reco
+    attributes:
+      label: Identifiant de la fiche
+      description: Du genre `-lGjDOH7qPw-01`. Il est dans l'URL de la fiche.
+      placeholder: "-lGjDOH7qPw-01"
+    validations:
+      required: true
+  - type: input
+    id: page
+    attributes:
+      label: La fiche concernée
+      placeholder: https://moox.github.io/unebonnereco/reco/-lGjDOH7qPw-01
+  - type: textarea
+    id: patch
+    attributes:
+      label: La correction
+      description: >-
+        Les champs à corriger, et eux seuls. `overrides` pour ce que la fiche devrait
+        dire, `review` pour retirer une fiche qui n'aurait pas dû exister.
+      render: json
+      value: |
+        {
+          "id": "",
+          "overrides": {}
+        }
+    validations:
+      required: true
+  - type: textarea
+    id: note
+    attributes:
+      label: Un mot pour expliquer
+      description: Ce que tu as entendu, où tu l'as vérifié. Obligatoire pour un retrait.

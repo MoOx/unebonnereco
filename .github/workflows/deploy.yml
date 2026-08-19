@@ -37,6 +37,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Validate corrections
+        run: npm run validate
+
       - name: Type-check
         run: npm run typecheck
 

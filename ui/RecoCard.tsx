@@ -123,7 +123,9 @@ const styles = StyleSheet.create({
   /* Square rather than portrait: the source is 16:9, and a 4:5 frame kept barely a
      quarter of its width. */
   art: { aspectRatio: 1, backgroundColor: "#05070A" },
-  still: { ...StyleSheet.absoluteFillObject },
+  // Written out rather than `StyleSheet.absoluteFillObject`, which react-native-web
+  // has but react-native's own types no longer declare.
+  still: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0 },
   topVeil: { position: "absolute", left: 0, right: 0, top: 0, height: "60%" },
 
   /* Badge first, title directly under it, both anchored top-left. */
