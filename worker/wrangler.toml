@@ -1,0 +1,21 @@
+# The correction endpoint. Deployed by hand — it changes about once a year.
+#
+#   npx wrangler deploy                        # from this directory
+#   npx wrangler secret put GITHUB_TOKEN       # fine-grained, Issues: read and write
+#
+# A custom hostname is optional: `npx wrangler deploy` alone answers on
+# <name>.<account>.workers.dev, which is a perfectly good address for this. To use one
+# anyway, add it from the worker's page (Settings → Domains & Routes → Custom domain);
+# Cloudflare writes the DNS record itself. Nothing here touches mail: this is HTTP, so
+# MX records — iCloud's or anyone's — are not involved.
+name = "unebonnereco-corrections"
+main = "index.ts"
+compatibility_date = "2026-08-01"
+
+[vars]
+REPO = "MoOx/unebonnereco"
+SITE_ORIGIN = "https://moox.github.io"
+
+# Rate limiting belongs in the dashboard rather than in this code: a WAF rate-limiting
+# rule on the worker's route (say 5 requests per minute per IP) costs nothing to run
+# and nothing to maintain, and it applies before the worker is even invoked.

@@ -80,11 +80,16 @@ a search URL when it 404s.
 ## Contributing a correction
 
 The catalogue is machine-made and wrong in places. Every entry on the site carries a
-**✎ Corriger cette fiche** button that opens a small form — pre-filled with what the
-entry currently says — and ends in one of two places: a pre-filled GitHub issue, or a
-pre-filled mail to the address in [`ui/contribute.ts`](ui/contribute.ts), for readers
-who will not open a GitHub account. Nothing is applied automatically. A person reads
-every correction and merges it, which is the only reason the door can be open at all.
+**✎ Proposer une correction** button that opens a small form, pre-filled with what the
+entry currently says. Sending it takes one press: it posts to
+[`worker/`](worker/index.ts), which files it as an issue labelled `correction`. No
+account, no repository, no mail client. Where the worker is unreachable — not
+deployed, offline, blocked — the same correction leaves as a pre-filled mail to the
+address in [`ui/contribute.ts`](ui/contribute.ts), which needs no server at all.
+
+Nothing is applied automatically. Every correction becomes an issue, and a person
+turns it into a pull request and merges it. That is what lets the door stay open to
+strangers: the worst a bad submission can do is add a line to a queue.
 
 By hand, corrections go in two files, keyed by recommendation id:
 
@@ -140,6 +145,26 @@ The two things most worth correcting:
 - **What the work actually is.** 290 entries have no reference page — mostly shows,
   YouTube channels and music, for which no public API has a record. A listener knows
   them; no amount of model quality will.
+
+## The correction endpoint
+
+One worker, one secret, deployed by hand from [`worker/`](worker/):
+
+```bash
+cd worker
+npx wrangler deploy
+npx wrangler secret put GITHUB_TOKEN   # fine-grained token, Issues: read and write
+```
+
+Then put the address it prints into `SUBMIT_URL` in
+[`ui/contribute.ts`](ui/contribute.ts) and push. Until that constant is set, the form
+uses the mail route and says so — an empty `SUBMIT_URL` is a supported state, not a
+broken one.
+
+Its `workers.dev` address is a fine place to leave it. A custom hostname is added from
+the worker's own page (**Settings → Domains & Routes → Custom domain**), and
+Cloudflare writes the DNS record itself. **No mail records are involved** — this is
+HTTP, so whatever handles the domain's mail is untouched.
 
 ## Deployment
 

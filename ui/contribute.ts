@@ -3,18 +3,26 @@ import type { Recommendation } from "../src/types";
 /**
  * Getting a reader's correction to where it can be merged.
  *
- * The site is a static export with nowhere to POST, so a correction has to leave the
- * page as a URL: a pre-filled GitHub issue for anyone with an account, a pre-filled
- * mail for everyone else. Both carry the same block of JSON, so whatever picks them
- * up later reads one format and not two.
- *
- * The shape of that block mirrors the two files it ends up in — `overrides` for what
- * an entry should contain, `review` for whether it should exist — so applying a
+ * The shape of what travels mirrors the two files it ends up in — `overrides` for
+ * what an entry should contain, `review` for whether it should exist — so applying a
  * contribution is a copy into each, with no interpretation in between. That is the
  * point: these corrections exist because a machine guessed wrong, and running them
  * back through a second guess would be a strange way to fix that.
+ *
+ * It leaves the page one of two ways. Normally it is posted to the worker below,
+ * which files it as an issue and hands back its address. Where that is unreachable —
+ * not deployed, offline, blocked — it falls back to a pre-filled mail, which needs no
+ * server at all and is the reason the form works before any of this is set up.
  */
-export const REPO = "MoOx/unebonnereco";
+
+/**
+ * The endpoint that files a correction, or an empty string while there is none.
+ *
+ * Empty is a supported state, not a broken one: the form drops to the mail route and
+ * says so. Set this to the worker's address once it is deployed — a workers.dev
+ * subdomain or a custom hostname, either works.
+ */
+export const SUBMIT_URL = "";
 
 /**
  * Where the entry lives, so a correction can be checked against what it corrects.
@@ -130,27 +138,30 @@ const subjectOf = (reco: Recommendation, contribution: Contribution): string =>
     : `Correction : ${reco.title}`;
 
 /**
- * The pre-filled issue.
+ * Hand the correction to the worker, which files it and answers with its address.
  *
- * Issue forms accept a value per field id in the query string, which is what makes a
- * button on a page able to open a form already filled in.
+ * Nothing here retries or queues: a correction that fails to send falls back to the
+ * mail route in front of the person who wrote it, rather than disappearing into a
+ * buffer they cannot see.
  */
-export function issueUrl(
+export async function submitCorrection(
   reco: Recommendation,
   contribution: Contribution,
-): string {
-  const query = new URLSearchParams({
-    template: "correction.yml",
-    title: subjectOf(reco, contribution),
-    reco: reco.id,
-    page: pageUrl(reco),
-    patch: serialise(contribution),
-    note: contribution.note ?? "",
+): Promise<string> {
+  const response = await fetch(SUBMIT_URL, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ ...contribution, page: pageUrl(reco) }),
   });
-  return `https://github.com/${REPO}/issues/new?${query}`;
+
+  const answer = (await response.json().catch(() => null)) as { url?: string; error?: string } | null;
+  if (!response.ok || !answer?.url) {
+    throw new Error(answer?.error ?? `envoi refusé (${response.status})`);
+  }
+  return answer.url;
 }
 
-/** The same thing as a mail, for readers who will not open a GitHub account. */
+/** The route that needs no server: the same block, in a pre-filled mail. */
 export function mailtoUrl(
   reco: Recommendation,
   contribution: Contribution,

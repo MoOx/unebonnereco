@@ -1,11 +1,12 @@
-// The site, type-checked separately from the pipeline.
+// The site and the correction worker, type-checked separately from the pipeline.
 //
 // They cannot share one configuration: the pipeline runs on Node and needs
 // `nodenext` resolution with explicit `.ts` extensions, while the site is resolved by
 // Metro, imports without extensions and pulls JSON straight in. Pointing one config
 // at both makes every UI import an error, which is why `app/` and `ui/` went
 // unchecked until corrections started arriving from readers and CI had to mean
-// something.
+// something. The worker rides along here for the same reason: it is browser-shaped
+// code, and it was the only file in the repository nothing checked.
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
@@ -19,6 +20,7 @@
   },
   "include": [
     "app/**/*.tsx",
+    "worker/*.ts",
     "ui/**/*.ts",
     "ui/**/*.tsx",
     "src/types.ts",

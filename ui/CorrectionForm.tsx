@@ -12,11 +12,12 @@ import {
 import { WORK_KINDS, type Recommendation, type WorkKind } from "../src/types";
 import { RECOMMENDATIONS, episodeOf, hms } from "./catalogue";
 import {
+  SUBMIT_URL,
   contributionOf,
   isEmpty,
-  issueUrl,
   mailtoUrl,
   serialise,
+  submitCorrection,
   type Draft,
 } from "./contribute";
 import { COLORS, FONTS, KIND_COLOR, KIND_LABEL, SPACE } from "./theme";
@@ -28,10 +29,10 @@ import { COLORS, FONTS, KIND_COLOR, KIND_LABEL, SPACE } from "./theme";
  * model's inference and 63% of its entries have no verified reference page. Nobody
  * fixes that at scale except the people who listened to the episode, and they will
  * not clone a repository to do it. So the form is on the page, pre-filled with what
- * the entry currently says, and it ends in a URL: an issue for anyone with a GitHub
- * account, a mail for everyone else.
+ * the entry currently says, and sending it takes one press — no account, no
+ * repository, and a pre-filled mail as the route when the endpoint cannot be reached.
  *
- * It never submits anything on its own. Every route out of here lands in front of a
+ * Nothing it sends is applied on its own. Every route out of here lands in front of a
  * person who decides whether to merge it, which is the only reason it can afford to
  * take corrections from strangers.
  */
@@ -49,6 +50,9 @@ export function CorrectionForm({
   const [by, setBy] = useState("");
   const [rejected, setRejected] = useState(false);
   const [showPayload, setShowPayload] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState("");
+  const [failure, setFailure] = useState("");
 
   /**
    * Who was in the room, offered as one tap each.
@@ -75,7 +79,19 @@ export function CorrectionForm({
   // The validator refuses a rejection without a reason, so the form does too rather
   // than letting someone find that out from a failed check on their pull request.
   const missingReason = rejected && !note.trim();
-  const blocked = nothingToSend || missingReason;
+  const blocked = nothingToSend || missingReason || sending;
+
+  const send = async () => {
+    setSending(true);
+    setFailure("");
+    try {
+      setSent(await submitCorrection(reco, contribution));
+    } catch (error) {
+      setFailure(error instanceof Error ? error.message : "envoi impossible");
+    } finally {
+      setSending(false);
+    }
+  };
 
   if (!open) {
     return (
@@ -84,11 +100,26 @@ export function CorrectionForm({
         onPress={() => setOpen(true)}
         accessibilityRole="button"
       >
-        <Text style={styles.triggerText}>✎ Corriger cette fiche</Text>
+        <Text style={styles.triggerText}>✎ Proposer une correction</Text>
         <Text style={styles.triggerSub}>
           {reco.corrected ? "déjà corrigée une fois" : "en 30 secondes"}
         </Text>
       </Pressable>
+    );
+  }
+
+  if (sent) {
+    return (
+      <View style={styles.form}>
+        <Text style={styles.thanksTitle}>Merci — c'est parti.</Text>
+        <Text style={styles.legend}>
+          La proposition est enregistrée telle quelle. Quelqu'un la relit, et la fiche
+          se met à jour une fois la correction acceptée.
+        </Text>
+        <Pressable onPress={() => Linking.openURL(sent)} accessibilityRole="link">
+          <Text style={styles.disclose}>▸ Suivre la proposition</Text>
+        </Pressable>
+      </View>
     );
   }
 
@@ -99,74 +130,77 @@ export function CorrectionForm({
         reste continuera de s'améliorer tout seul.
       </Text>
 
-      <Field
-        label="Titre"
-        value={draft.title}
-        onChangeText={(value) => set("title", value)}
-      />
-      <Field
-        label="Auteur, réalisateur, groupe…"
-        value={draft.creator}
-        onChangeText={(value) => set("creator", value)}
+      {/* First, because it is the answer that makes every other field pointless. */}
+      <Toggle
+        label="Ce n'est pas une recommandation"
+        hint="Doublon, contresens, ou passage qui n'en est pas un. La fiche sortira du catalogue."
+        value={rejected}
+        onValueChange={setRejected}
       />
 
-      <Group label="Type">
-        <View style={styles.chips}>
-          {WORK_KINDS.map((kind) => (
-            <Chip
-              key={kind}
-              label={KIND_LABEL[kind]}
-              active={draft.kind === kind}
-              color={KIND_COLOR[kind]}
-              onPress={() => set("kind", kind as WorkKind)}
+      {rejected ? null : (
+        <>
+          <Field
+            label="Titre"
+            value={draft.title}
+            onChangeText={(value) => set("title", value)}
+          />
+          <Field
+            label="Auteur, réalisateur, groupe…"
+            value={draft.creator}
+            onChangeText={(value) => set("creator", value)}
+          />
+
+          <Group label="Type">
+            <View style={styles.chips}>
+              {WORK_KINDS.map((kind) => (
+                <Chip
+                  key={kind}
+                  label={KIND_LABEL[kind]}
+                  active={draft.kind === kind}
+                  color={KIND_COLOR[kind]}
+                  onPress={() => set("kind", kind as WorkKind)}
+                />
+              ))}
+            </View>
+          </Group>
+
+          <Group label="Recommandé par">
+            <View style={styles.chips}>
+              {speakers.map((name) => (
+                <Chip
+                  key={name}
+                  label={name}
+                  active={draft.recommendedBy === name}
+                  onPress={() => set("recommendedBy", name)}
+                />
+              ))}
+            </View>
+            <TextInput
+              style={styles.input}
+              value={draft.recommendedBy}
+              onChangeText={(value) => set("recommendedBy", value)}
+              placeholder="ou un autre nom"
+              placeholderTextColor={COLORS.muted}
             />
-          ))}
-        </View>
-      </Group>
-
-      <Group label="Recommandé par">
-        <View style={styles.chips}>
-          {speakers.map((name) => (
-            <Chip
-              key={name}
-              label={name}
-              active={draft.recommendedBy === name}
-              onPress={() => set("recommendedBy", name)}
+            <Toggle
+              label="Le nom est dit dans l'épisode"
+              hint="Sinon la fiche continuera d'afficher « probablement »."
+              value={Boolean(draft.attributionCued)}
+              onValueChange={(value) => set("attributionCued", value)}
             />
-          ))}
-        </View>
-        <TextInput
-          style={styles.input}
-          value={draft.recommendedBy}
-          onChangeText={(value) => set("recommendedBy", value)}
-          placeholder="ou un autre nom"
-          placeholderTextColor={COLORS.muted}
-        />
-        <Toggle
-          label="Le nom est dit dans l'épisode"
-          hint="Sinon la fiche continuera d'afficher « probablement »."
-          value={Boolean(draft.attributionCued)}
-          onValueChange={(value) => set("attributionCued", value)}
-        />
-      </Group>
+          </Group>
 
-      <Field
-        label="Lien vers la fiche de l'œuvre"
-        value={draft.link ?? ""}
-        onChangeText={(value) => set("link", value)}
-        placeholder="https://…"
-      />
+          <Field
+            label="Lien vers la fiche de l'œuvre"
+            value={draft.link ?? ""}
+            onChangeText={(value) => set("link", value)}
+            placeholder="https://…"
+          />
 
-      <Trim reco={reco} draft={draft} onChange={onChange} />
-
-      <Group label="Cette fiche ne devrait pas exister">
-        <Toggle
-          label="Ce n'est pas une recommandation"
-          hint="Doublon, contresens, ou passage qui n'en est pas un. Elle sortira du catalogue — dis pourquoi juste en dessous."
-          value={rejected}
-          onValueChange={setRejected}
-        />
-      </Group>
+          <Trim reco={reco} draft={draft} onChange={onChange} />
+        </>
+      )}
 
       <Field
         label={rejected ? "Pourquoi (obligatoire)" : "Un mot pour expliquer"}
@@ -193,30 +227,37 @@ export function CorrectionForm({
       ) : null}
 
       <View style={styles.actions}>
-        <Pressable
-          style={[styles.send, blocked && styles.sendOff]}
-          disabled={blocked}
-          onPress={() => Linking.openURL(issueUrl(reco, contribution))}
-          accessibilityRole="button"
-        >
-          <Text style={styles.sendText}>Proposer sur GitHub</Text>
-        </Pressable>
-        <Pressable
-          style={[styles.sendAlt, blocked && styles.sendOff]}
-          disabled={blocked}
-          onPress={() => Linking.openURL(mailtoUrl(reco, contribution))}
-          accessibilityRole="button"
-        >
-          <Text style={styles.sendAltText}>Envoyer par mail</Text>
-        </Pressable>
+        {SUBMIT_URL && !failure ? (
+          <Pressable
+            style={[styles.send, blocked && styles.sendOff]}
+            disabled={blocked}
+            onPress={send}
+            accessibilityRole="button"
+          >
+            <Text style={styles.sendText}>
+              {sending ? "Envoi…" : "Envoyer la correction"}
+            </Text>
+          </Pressable>
+        ) : (
+          <Pressable
+            style={[styles.send, blocked && styles.sendOff]}
+            disabled={blocked}
+            onPress={() => Linking.openURL(mailtoUrl(reco, contribution))}
+            accessibilityRole="button"
+          >
+            <Text style={styles.sendText}>Envoyer par mail</Text>
+          </Pressable>
+        )}
       </View>
 
       <Text style={styles.footnote}>
-        {missingReason
-          ? "Il manque la raison du retrait."
-          : nothingToSend
-            ? "Rien n'a changé pour l'instant."
-            : "Les deux mènent au même endroit : quelqu'un relit avant publication."}
+        {failure
+          ? `L'envoi n'est pas passé (${failure}). Le mail arrive au même endroit.`
+          : missingReason
+            ? "Il manque la raison du retrait."
+            : nothingToSend
+              ? "Rien n'a changé pour l'instant."
+              : "Rien n'est publié automatiquement : quelqu'un relit avant."}
       </Text>
 
       <Pressable onPress={() => setOpen(false)}>
@@ -416,6 +457,13 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
   },
   legend: { fontFamily: FONTS.body, fontSize: 13, lineHeight: 19, color: COLORS.muted },
+  thanksTitle: {
+    fontFamily: FONTS.display,
+    fontSize: 24,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    color: COLORS.text,
+  },
 
   group: { gap: SPACE.sm },
   label: {
