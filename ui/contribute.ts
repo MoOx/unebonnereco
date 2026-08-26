@@ -9,18 +9,18 @@ import type { Recommendation } from "../src/types";
  * point: these corrections exist because a machine guessed wrong, and running them
  * back through a second guess would be a strange way to fix that.
  *
- * It leaves the page one of two ways. Normally it is posted to the worker below,
- * which files it as an issue and hands back its address. Where that is unreachable —
- * not deployed, offline, blocked — it falls back to a pre-filled mail, which needs no
- * server at all and is the reason the form works before any of this is set up.
+ * It leaves the page one way: posted to the worker below, which files it as an issue
+ * and hands back its address. There is deliberately no second route — a `mailto:`
+ * fallback was written first and removed, because a fallback to an address nobody
+ * reads is worse than no fallback: it looks like it worked.
  */
 
 /**
  * The endpoint that files a correction, or an empty string while there is none.
  *
- * Empty is a supported state, not a broken one: the form drops to the mail route and
- * says so. Set this to the worker's address once it is deployed — a workers.dev
- * subdomain or a custom hostname, either works.
+ * Empty is a supported state: the form does not appear at all, rather than offering
+ * to send somewhere that cannot receive. Set it to the worker's address once that is
+ * deployed — a workers.dev subdomain or a custom hostname, either works.
  */
 export const SUBMIT_URL = "";
 
@@ -34,15 +34,6 @@ export const SITE = "https://moox.github.io/unebonnereco";
 
 export const pageUrl = (reco: Recommendation): string =>
   `${SITE}/reco/${reco.id}`;
-
-/**
- * The fallback route, for readers without a GitHub account — which is most of them.
- *
- * Published in the clear, and harvestable as a result. Obfuscating it would be
- * theatre: the address ships inside the bundle either way, and the address exists to
- * receive mail from strangers.
- */
-export const CONTACT_EMAIL = "unebonnereco@gmail.com";
 
 /** What a person is proposing, in the shape of the files it lands in. */
 export type Contribution = {
@@ -132,11 +123,6 @@ export const isEmpty = (contribution: Contribution): boolean =>
 export const serialise = (contribution: Contribution): string =>
   JSON.stringify(contribution, null, 2);
 
-const subjectOf = (reco: Recommendation, contribution: Contribution): string =>
-  contribution.review
-    ? `Fiche à retirer : ${reco.title}`
-    : `Correction : ${reco.title}`;
-
 /**
  * Hand the correction to the worker, which files it and answers with its address.
  *
@@ -159,28 +145,4 @@ export async function submitCorrection(
     throw new Error(answer?.error ?? `envoi refusé (${response.status})`);
   }
   return answer.url;
-}
-
-/** The route that needs no server: the same block, in a pre-filled mail. */
-export function mailtoUrl(
-  reco: Recommendation,
-  contribution: Contribution,
-): string {
-  const body = [
-    subjectOf(reco, contribution),
-    pageUrl(reco),
-    "",
-    "Merci de laisser ce bloc tel quel, il est relu tel qu'il arrive :",
-    "",
-    serialise(contribution),
-  ].join("\n");
-
-  // Percent-encoded by hand rather than through URLSearchParams: that encodes a
-  // space as `+`, which a query string decodes back and a mail client does not —
-  // the body would arrive with a plus between every word.
-  return (
-    `mailto:${CONTACT_EMAIL}` +
-    `?subject=${encodeURIComponent(`[reco] ${reco.id} — ${reco.title}`)}` +
-    `&body=${encodeURIComponent(body)}`
-  );
 }

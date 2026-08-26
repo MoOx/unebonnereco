@@ -82,10 +82,13 @@ a search URL when it 404s.
 The catalogue is machine-made and wrong in places. Every entry on the site carries a
 **✎ Proposer une correction** button that opens a small form, pre-filled with what the
 entry currently says. Sending it takes one press: it posts to
-[`worker/`](worker/index.ts), which files it as an issue labelled `correction`. No
-account, no repository, no mail client. Where the worker is unreachable — not
-deployed, offline, blocked — the same correction leaves as a pre-filled mail to the
-address in [`ui/contribute.ts`](ui/contribute.ts), which needs no server at all.
+[`worker/`](worker/index.ts), which files it as an issue labelled `correction` and
+hands back its address, so the reader can watch what happens to what they sent. No
+account, no repository, nothing to install.
+
+There is no second route on purpose. A `mailto:` fallback was written first and
+removed: a fallback to an address nobody reads is worse than no fallback, because it
+looks like it worked. When the endpoint is unset the form does not appear at all.
 
 Nothing is applied automatically. Every correction becomes an issue, and a person
 turns it into a pull request and merges it. That is what lets the door stay open to
@@ -148,23 +151,59 @@ The two things most worth correcting:
 
 ## The correction endpoint
 
-One worker, one secret, deployed by hand from [`worker/`](worker/):
+One worker, one secret. Set up once, from [`worker/`](worker/):
 
 ```bash
 cd worker
-npx wrangler deploy
-npx wrangler secret put GITHUB_TOKEN   # fine-grained token, Issues: read and write
+npx wrangler login     # opens the browser
+npx wrangler deploy    # prints the address it now answers on
+npx wrangler secret put GITHUB_TOKEN
 ```
 
-Then put the address it prints into `SUBMIT_URL` in
-[`ui/contribute.ts`](ui/contribute.ts) and push. Until that constant is set, the form
-uses the mail route and says so — an empty `SUBMIT_URL` is a supported state, not a
-broken one.
+The token is a **fine-grained** GitHub token, scoped to this repository alone, with
+**Issues: read and write** and nothing else. It is the only credential in the whole
+project, it can open issues and cannot touch code, and if it leaks the worst outcome
+is a spammed issue queue. It expires: when it does, the endpoint answers 502 and the
+form says the send did not go through, so set a reminder or give it no expiry.
 
-Its `workers.dev` address is a fine place to leave it. A custom hostname is added from
-the worker's own page (**Settings → Domains & Routes → Custom domain**), and
-Cloudflare writes the DNS record itself. **No mail records are involved** — this is
-HTTP, so whatever handles the domain's mail is untouched.
+Two things on the repository side: **Issues must be enabled** (Settings → General →
+Features), and the **`correction` label has to exist** (Issues → Labels → New label).
+The API does not invent a missing label — it refuses the issue — which the check
+below catches before anyone else does.
+
+Then put the address wrangler printed into `SUBMIT_URL` in
+[`ui/contribute.ts`](ui/contribute.ts) and push. Until that constant is set, the form
+does not render.
+
+Check it end to end before announcing anything:
+
+```bash
+curl -X POST "$SUBMIT_URL" \
+  -H 'content-type: application/json' \
+  -H 'origin: https://moox.github.io' \
+  -d '{"id":"-lGjDOH7qPw-01","overrides":{"creator":"Richard Gadd"},"note":"test"}'
+```
+
+It should answer `{"url":"…/issues/1"}`. Without the `origin` header it answers 403,
+which is the point: the site is the only caller allowed.
+
+### On the address, and on abuse
+
+Its `workers.dev` address works and costs nothing to keep. A custom hostname is added
+from the worker's page (**Settings → Domains & Routes → Custom domain**), where
+Cloudflare writes the DNS record itself — no mail record is involved, so whatever
+handles the domain's mail is untouched.
+
+There is one reason to prefer the custom hostname: **WAF rate-limiting rules apply to
+a zone, not to `workers.dev`**. On a hostname inside the zone, one rule — say 5
+requests a minute per IP — stops a flood before the worker is even invoked, and the
+free plan allows one such rule. Without it the worker's own limits still apply (8 KB
+per request, a strict schema, a rejection has to be motivated), but nothing caps the
+rate.
+
+Abuse beyond that is bounded by design: the worker files, it does not apply. Every
+correction lands in a queue a person reads, so the worst a bad submission achieves is
+a line to close.
 
 ## Deployment
 

@@ -15,7 +15,6 @@ import {
   SUBMIT_URL,
   contributionOf,
   isEmpty,
-  mailtoUrl,
   serialise,
   submitCorrection,
   type Draft,
@@ -30,7 +29,7 @@ import { COLORS, FONTS, KIND_COLOR, KIND_LABEL, SPACE } from "./theme";
  * fixes that at scale except the people who listened to the episode, and they will
  * not clone a repository to do it. So the form is on the page, pre-filled with what
  * the entry currently says, and sending it takes one press — no account, no
- * repository, and a pre-filled mail as the route when the endpoint cannot be reached.
+ * repository, nothing to install.
  *
  * Nothing it sends is applied on its own. Every route out of here lands in front of a
  * person who decides whether to merge it, which is the only reason it can afford to
@@ -92,6 +91,10 @@ export function CorrectionForm({
       setSending(false);
     }
   };
+
+  // No endpoint, no form. Offering to send a correction that has nowhere to go would
+  // be worse than not offering: the reader would believe it had been sent.
+  if (!SUBMIT_URL) return null;
 
   if (!open) {
     return (
@@ -227,32 +230,25 @@ export function CorrectionForm({
       ) : null}
 
       <View style={styles.actions}>
-        {SUBMIT_URL && !failure ? (
-          <Pressable
-            style={[styles.send, blocked && styles.sendOff]}
-            disabled={blocked}
-            onPress={send}
-            accessibilityRole="button"
-          >
-            <Text style={styles.sendText}>
-              {sending ? "Envoi…" : "Envoyer la correction"}
-            </Text>
-          </Pressable>
-        ) : (
-          <Pressable
-            style={[styles.send, blocked && styles.sendOff]}
-            disabled={blocked}
-            onPress={() => Linking.openURL(mailtoUrl(reco, contribution))}
-            accessibilityRole="button"
-          >
-            <Text style={styles.sendText}>Envoyer par mail</Text>
-          </Pressable>
-        )}
+        <Pressable
+          style={[styles.send, blocked && styles.sendOff]}
+          disabled={blocked}
+          onPress={send}
+          accessibilityRole="button"
+        >
+          <Text style={styles.sendText}>
+            {sending
+              ? "Envoi…"
+              : failure
+                ? "Réessayer"
+                : "Envoyer la correction"}
+          </Text>
+        </Pressable>
       </View>
 
       <Text style={styles.footnote}>
         {failure
-          ? `L'envoi n'est pas passé (${failure}). Le mail arrive au même endroit.`
+          ? `L'envoi n'est pas passé (${failure}). Rien n'est perdu : le formulaire garde ce que tu as écrit.`
           : missingReason
             ? "Il manque la raison du retrait."
             : nothingToSend
